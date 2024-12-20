@@ -1,0 +1,71 @@
+name: postiz
+services:
+  app:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz-app
+    hostname: postiz
+    restart: always
+    pull_policy: always
+    environment:
+      - IS_GENERAL=true
+      - STORAGE_PROVIDER=local
+      - UPLOAD_DIRECTORY=/uploads
+      - NEXT_PUBLIC_UPLOAD_DIRECTORY=/uploads
+      - BACKEND_INTERNAL_URL=http://localhost:3000
+      - MAIN_URL=https://${BASE_HOST_NAME}
+      - FRONTEND_URL=https://${BASE_HOST_NAME}
+      - NEXT_PUBLIC_BACKEND_URL=https://${BASE_HOST_NAME}/api
+      - JWT_SECRET=${APP_JWT_TOKEN:-fTVhHwSI4dT3TNEE21dZ65ZRSqQeFKex}
+      - DATABASE_URL=postgresql://postiz:postiz@postiz-postgres:5432/postiz
+      - REDIS_URL=redis://postiz-redis:6379
+    ports:
+      - 172.17.0.1:50041:5000
+    volumes:
+      - '/var/lib/srv/$USER/docker/gitroomhq/postiz/latest/rootfs/config/postiz:/config/'
+      - '/var/lib/srv/$USER/docker/gitroomhq/postiz/latest/rootfs/data/postiz/uploads:/uploads/'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - postiz
+
+  db:
+    image: postgres:14.5
+    container_name: postiz-postgres
+    restart: always
+    pull_policy: always
+    environment:
+      - POSTGRES_DB=postiz
+      - POSTGRES_USER=postiz
+      - POSTGRES_PASSWORD=postiz
+    volumes:
+      - '/var/lib/srv/$USER/docker/gitroomhq/postiz/latest/rootfs/data/db/postgres:/var/lib/postgresql/data'
+    healthcheck:
+      test: pg_isready -U postiz-user -d postiz-db-local
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - postiz
+
+  redis:
+    image: redis:7.2
+    container_name: postiz-redis
+    restart: always
+    pull_policy: always
+    volumes:
+      - '/var/lib/srv/$USER/docker/gitroomhq/postiz/latest/rootfs/data/db/redis:/data'
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - postiz
+
+networks:
+  postiz:
+    name: postiz
+    external: false
