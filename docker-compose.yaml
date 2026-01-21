@@ -1,0 +1,83 @@
+# nginx proxy address - http://172.17.0.1:50041
+
+
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+name: postiz
+services:
+  app:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz-app
+    hostname: postiz
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      IS_GENERAL: true
+      STORAGE_PROVIDER: local
+      UPLOAD_DIRECTORY: /uploads
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: /uploads
+      BACKEND_INTERNAL_URL: http://localhost:3000
+      MAIN_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
+      FRONTEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
+      NEXT_PUBLIC_BACKEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api
+      JWT_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret}
+      DATABASE_URL: postgresql://${DB_USER_NAME:-postiz}:${DB_USER_PASS:-changeme_db_password}@postiz-db:5432/${DB_CREATE_DATABASE_NAME:-postiz}
+      REDIS_URL: redis://postiz-redis:6379
+    ports:
+      - 172.17.0.1:50041:5000
+    volumes:
+      - './rootfs/config/postiz:/config/'
+      - './rootfs/data/postiz/uploads:/uploads/'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - postiz
+
+  db:
+    image: postgres:14.5
+    container_name: postiz-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-postiz}
+      POSTGRES_USER: ${DB_USER_NAME:-postiz}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+    volumes:
+      - './rootfs/db/postgres/postiz:/var/lib/postgresql/data'
+    healthcheck:
+      test: pg_isready -U postiz-user -d postiz
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - postiz
+
+  redis:
+    image: redis:7.2
+    container_name: postiz-redis
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    volumes:
+      - './rootfs/db/redis/postiz:/data'
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - postiz
+
+networks:
+  postiz:
+    name: postiz
+    external: false
