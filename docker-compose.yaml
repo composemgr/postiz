@@ -52,7 +52,7 @@ services:
       POSTGRES_USER: ${DB_USER_NAME:-postiz}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
     volumes:
-      - './rootfs/db/postgres/postiz:/var/lib/postgresql/data'
+      - './rootfs/data/db/postgres/postiz:/var/lib/postgresql/data'
     healthcheck:
       test: pg_isready -U postiz-user -d postiz
       interval: 10s
@@ -68,7 +68,7 @@ services:
     pull_policy: always
     logging: *default-logging
     volumes:
-      - './rootfs/db/redis/postiz:/data'
+      - './rootfs/data/db/redis/postiz:/data'
     healthcheck:
       test: redis-cli ping
       interval: 10s
