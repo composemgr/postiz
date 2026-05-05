@@ -52,10 +52,10 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/config/postiz` - Data storage
-- `./rootfs/data/postiz/uploads` - Data storage
-- `./rootfs/data/db/postgres/postiz` - Data storage
-- `./rootfs/data/db/redis/postiz` - Data storage
+- `./volumes/config/postiz` - Data storage
+- `./volumes/data/postiz/uploads` - Data storage
+- `./volumes/data/db/postgres/postiz` - Data storage
+- `./volumes/data/db/redis/postiz` - Data storage
 
 ## 🔐 Security
 
