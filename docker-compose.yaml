@@ -12,20 +12,21 @@ services:
   app:
     image: ghcr.io/gitroomhq/postiz-app:latest
     container_name: postiz-app
-    hostname: postiz
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
     pull_policy: always
     logging: *default-logging
     environment:
-      IS_GENERAL: true
+      TZ: ${TZ:-America/New_York}
+      IS_GENERAL: "true"
       STORAGE_PROVIDER: local
       UPLOAD_DIRECTORY: /uploads
       NEXT_PUBLIC_UPLOAD_DIRECTORY: /uploads
       BACKEND_INTERNAL_URL: http://localhost:3000
-      MAIN_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
-      FRONTEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
-      NEXT_PUBLIC_BACKEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api
-      JWT_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret}
+      MAIN_URL: https://${BASE_HOST_NAME:-localhost}.${BASE_DOMAIN_NAME:-example.com}
+      FRONTEND_URL: https://${BASE_HOST_NAME:-localhost}.${BASE_DOMAIN_NAME:-example.com}
+      NEXT_PUBLIC_BACKEND_URL: https://${BASE_HOST_NAME:-localhost}.${BASE_DOMAIN_NAME:-example.com}/api
+      JWT_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret_min_32_chars}
       DATABASE_URL: postgresql://${DB_USER_NAME:-postiz}:${DB_USER_PASS:-changeme_db_password}@postiz-db:5432/${DB_CREATE_DATABASE_NAME:-postiz}
       REDIS_URL: redis://postiz-redis:6379
     ports:
@@ -34,35 +35,36 @@ services:
       - './volumes/config/postiz:/config/'
       - './volumes/data/postiz/uploads:/uploads/'
     depends_on:
-      db:
+      postiz-db:
         condition: service_healthy
-      redis:
+      postiz-redis:
         condition: service_healthy
     networks:
       - postiz
 
-  db:
-    image: postgres:14.5
+  postiz-db:
+    image: postgres:latest
     container_name: postiz-db
     restart: always
     pull_policy: always
     logging: *default-logging
     environment:
+      TZ: ${TZ:-America/New_York}
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-postiz}
       POSTGRES_USER: ${DB_USER_NAME:-postiz}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
     volumes:
       - './volumes/data/db/postgres/postiz:/var/lib/postgresql/data'
     healthcheck:
-      test: pg_isready -U postiz-user -d postiz
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER_NAME:-postiz} -d ${DB_CREATE_DATABASE_NAME:-postiz}"]
       interval: 10s
       timeout: 3s
       retries: 3
     networks:
       - postiz
 
-  redis:
-    image: redis:7.2
+  postiz-redis:
+    image: redis:alpine
     container_name: postiz-redis
     restart: always
     pull_policy: always
