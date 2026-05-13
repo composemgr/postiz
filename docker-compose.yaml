@@ -29,6 +29,7 @@ services:
       JWT_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret_min_32_chars}
       DATABASE_URL: postgresql://${DB_USER_NAME:-postiz}:${DB_USER_PASS:-changeme_db_password}@postiz-db:5432/${DB_CREATE_DATABASE_NAME:-postiz}
       REDIS_URL: redis://postiz-redis:6379
+      TEMPORAL_ADDRESS: postiz-temporal:7233
       CONTAINER_NAME: postiz-app
       HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     ports:
@@ -41,6 +42,8 @@ services:
         condition: service_healthy
       postiz-redis:
         condition: service_healthy
+      postiz-temporal:
+        condition: service_started
     networks:
       - postiz
       - proxy
@@ -99,6 +102,26 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    networks:
+      - postiz
+
+  postiz-temporal:
+    image: temporalio/auto-setup:latest
+    container_name: postiz-temporal
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: ${DB_USER_NAME:-postiz}
+      POSTGRES_PWD: ${DB_USER_PASS:-changeme_db_password}
+      POSTGRES_SEEDS: postiz-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      CONTAINER_NAME: postiz-temporal
+    depends_on:
+      postiz-db:
+        condition: service_healthy
     networks:
       - postiz
 
