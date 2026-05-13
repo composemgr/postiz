@@ -29,6 +29,8 @@ services:
       JWT_SECRET: ${APP_JWT_TOKEN:-changeme_jwt_secret_min_32_chars}
       DATABASE_URL: postgresql://${DB_USER_NAME:-postiz}:${DB_USER_PASS:-changeme_db_password}@postiz-db:5432/${DB_CREATE_DATABASE_NAME:-postiz}
       REDIS_URL: redis://postiz-redis:6379
+      CONTAINER_NAME: postiz-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     ports:
       - 172.17.0.1:50041:5000
     volumes:
@@ -41,6 +43,24 @@ services:
         condition: service_healthy
     networks:
       - postiz
+      - proxy
+      - cloudflare
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://postiz-app:5000'
+      - 'cloudflare.hostname=postiz.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.postiz-app.entrypoints=http'
+      - 'traefik.http.routers.postiz-app-secure.tls=true'
+      - 'traefik.http.routers.postiz-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.postiz-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.postiz-app.middlewares=postiz-app-https-redirect'
+      - 'traefik.http.routers.postiz-app-secure.entrypoints=https'
+      - 'traefik.http.routers.postiz-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.postiz-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.postiz-app-secure.service=postiz-app'
+      - 'traefik.http.services.postiz-app.loadbalancer.server.port=5000'
 
   postiz-db:
     image: postgres:latest
@@ -53,6 +73,7 @@ services:
       POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-postiz}
       POSTGRES_USER: ${DB_USER_NAME:-postiz}
       POSTGRES_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      CONTAINER_NAME: postiz-db
     volumes:
       - './volumes/data/db/postgres/postiz:/var/lib/postgresql/data'
     healthcheck:
@@ -69,6 +90,8 @@ services:
     restart: always
     pull_policy: always
     logging: *default-logging
+    environment:
+      CONTAINER_NAME: postiz-redis
     volumes:
       - './volumes/data/db/redis/postiz:/data'
     healthcheck:
@@ -83,3 +106,7 @@ networks:
   postiz:
     name: postiz
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
