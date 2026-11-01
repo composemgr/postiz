@@ -1,0 +1,135 @@
+name: postiz
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+
+  app:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: postiz-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      # Public URLs
+      MAIN_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
+      FRONTEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}
+      NEXT_PUBLIC_BACKEND_URL: https://${BASE_HOST_NAME:-$HOSTNAME}/api
+      BACKEND_INTERNAL_URL: http://localhost:3000
+      # Application secrets
+      JWT_SECRET: ${APP_JWT_TOKEN:-replace-with-a-random-32-byte-hex-string}
+      # Storage
+      STORAGE_PROVIDER: local
+      UPLOAD_DIRECTORY: /uploads
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: /uploads
+      # Data stores
+      DATABASE_URL: postgresql://${DB_USER_NAME:-postiz}:${DB_USER_PASS:-replace-with-a-random-password}@db:5432/${DB_CREATE_DATABASE_NAME:-postiz}
+      REDIS_URL: redis://cache:6379
+      TEMPORAL_ADDRESS: temporal:7233
+    volumes:
+      - './volumes/data/postiz/uploads:/uploads:z'
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik'
+      - 'traefik.http.routers.postiz-app.entrypoints=http'
+      - 'traefik.http.routers.postiz-app.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.routers.postiz-app.middlewares=postiz-app-https-redirect'
+      - 'traefik.http.middlewares.postiz-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.postiz-app-secure.entrypoints=https'
+      - 'traefik.http.routers.postiz-app-secure.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.routers.postiz-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.postiz-app-secure.service=postiz-app'
+      - 'traefik.http.services.postiz-app.loadbalancer.server.port=5000'
+    networks:
+      - postiz
+      - traefik
+
+  db:
+    image: postgres:latest
+    container_name: postiz-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: postiz-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: postiz-db
+      POSTGRES_DB: ${DB_CREATE_DATABASE_NAME:-postiz}
+      POSTGRES_USER: ${DB_USER_NAME:-postiz}
+      POSTGRES_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+    volumes:
+      - './volumes/db/postgres/postiz:/var/lib/postgresql/data:z'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER_NAME:-postiz} -d ${DB_CREATE_DATABASE_NAME:-postiz}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - postiz
+
+  cache:
+    image: redis:alpine
+    container_name: postiz-redis
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: postiz-redis
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      CONTAINER_NAME: postiz-redis
+    volumes:
+      - './volumes/db/redis/postiz:/var/lib/redis/data:z'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - postiz
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: postiz-temporal
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: postiz-temporal
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: postiz-temporal
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: ${DB_USER_NAME:-postiz}
+      POSTGRES_PWD: ${DB_USER_PASS:-replace-with-a-random-password}
+      POSTGRES_SEEDS: postiz-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - postiz
+
+networks:
+  postiz:
+    name: postiz
+    external: false
+  traefik:
+    name: traefik
+    external: true

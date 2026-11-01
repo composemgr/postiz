@@ -1,20 +1,20 @@
 ## 👋 Welcome to postiz 🚀
 
-Social media management and scheduling platform
+Postiz — open-source social media scheduling for multiple platforms
 
 ## 📋 Description
 
-Social media management and scheduling platform
+Postiz — open-source social media scheduling for multiple platforms
 
 ## 🚀 Services
 
-- **app**: ghcr.io/gitroomhq/postiz-app:latest
+- **app**: `ghcr.io/gitroomhq/postiz-app:latest`
 
 ### Infrastructure Components
 
 - **db**: Postgres database
-- **redis**: Redis database
-
+- **cache**: Redis cache and queue
+- **temporal**: Temporal workflow engine
 
 ## 📦 Installation
 
@@ -27,7 +27,8 @@ curl -q -LSsf "https://raw.githubusercontent.com/composemgr/postiz/main/docker-c
 ```bash
 git clone "https://github.com/composemgr/postiz" ~/.local/srv/docker/postiz
 cd ~/.local/srv/docker/postiz
-docker compose up -d
+cp default.env .env
+docker compose --env-file .env up -d
 ```
 
 ### Option 3: Using composemgr
@@ -39,23 +40,51 @@ composemgr install postiz
 
 ### Environment Variables
 
-```shell
-APP_JWT_TOKEN=changeme_jwt_secret
-DB_USER_NAME=postiz
+See `app.env.sample` for the app-specific variables. The full set of shared
+variables lives in `default.env.sample`.
+
+### Environment Files
+
+`default.env.sample` holds the full set of variables and is copied to `.env`
+before starting the stack:
+
+```bash
+cp default.env .env
+docker compose --env-file .env up -d
 ```
 
-See `docker-compose.yaml` for complete list of configurable options.
+`app.env.sample` holds the app-specific overrides and is copied to `app.env`:
+
+```bash
+cp app.env.sample app.env
+```
+
+`composemgr up` applies `app.env` and `default.env` automatically. Raw
+`docker compose` commands need `--env-file .env` to pick up the same values.
+
+### Reverse Proxy
+
+Three standalone compose files ship in this repo:
+
+| File | Use |
+|------|-----|
+| `docker-compose.yaml` | Default, published on `172.17.0.1:64313` |
+| `docker-compose.traefik.yaml` | Behind an existing external `traefik` network |
+| `docker-compose.tunnel.yaml` | Behind an existing external `cloudflare` tunnel network |
+
+```bash
+docker compose -f docker-compose.traefik.yaml --env-file .env up -d
+```
 
 ## 🌐 Access
 
-- **Web Interface**: http://172.17.0.1:50041
+- **Web UI**: http://172.17.0.1:64313
 
-## 📂 Volumes
+## 💾 Volumes
 
-- `./volumes/config/postiz` - Data storage
-- `./volumes/data/postiz/uploads` - Data storage
-- `./volumes/data/db/postgres/postiz` - Data storage
-- `./volumes/data/db/redis/postiz` - Data storage
+- `./volumes/data/postiz/uploads` - Uploaded media
+- `./volumes/db/postgres/postiz` - Database data
+- `./volumes/db/redis/postiz` - Redis data
 
 ## 🔐 Security
 
@@ -68,26 +97,26 @@ See `docker-compose.yaml` for complete list of configurable options.
 ## 🔍 Logging
 
 ```shell
-docker compose logs -f app
+docker compose --env-file .env logs -f app
 ```
 
 ## 🛠️ Management
 
 ```bash
 # Start services
-docker compose up -d
+docker compose --env-file .env up -d
 
 # Stop services
-docker compose down
+docker compose --env-file .env down
 
 # Update to latest images
-docker compose pull && docker compose up -d
+docker compose --env-file .env pull && docker compose --env-file .env up -d
 
 # View logs
-docker compose logs -f
+docker compose --env-file .env logs -f
 
 # Restart services
-docker compose restart
+docker compose --env-file .env restart
 ```
 
 ## 📋 Requirements
@@ -97,5 +126,5 @@ docker compose restart
 
 ## 🤝 Author
 
-🤖 casjay: [Github](https://github.com/casjay) 🤖  
+🤖 casjay: [Github](https://github.com/casjay) 🤖
 🦄 composemgr: [Github](https://github.com/composemgr) 🦄
